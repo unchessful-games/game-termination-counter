@@ -4,7 +4,10 @@ use futures::stream::TryStreamExt;
 use tokio::io::AsyncReadExt;
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 
-use crate::{stats::TerminationStats, visitor};
+use crate::{
+    stats::{CountsByMove, TerminationStats},
+    visitor,
+};
 struct BytesStreamReader {
     pub data_recv: tokio::sync::mpsc::Receiver<Vec<u8>>,
 }
@@ -28,7 +31,7 @@ impl Read for BytesStreamReader {
         }
     }
 }
-pub async fn download_url(url: String) -> anyhow::Result<TerminationStats> {
+pub async fn download_url(url: String) -> anyhow::Result<CountsByMove> {
     let response = reqwest::get(url).await.unwrap();
     let total_len = response.content_length().unwrap_or(1);
     let mut data = response

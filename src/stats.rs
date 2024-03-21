@@ -57,6 +57,15 @@ pub struct StatsByFinishingColor {
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct CountsByMove(HashMap<String, usize>);
 
+impl CountsByMove {
+    pub fn increment(&mut self, how: SingleGameTermination) {
+        self.0
+            .entry(how.final_move)
+            .and_modify(|v| *v += 1)
+            .or_insert(1);
+    }
+}
+
 impl TerminationStats {
     pub fn increment(&mut self, how: SingleGameTermination) {
         let white_rating_round = round_to_hundred(how.white_elo);

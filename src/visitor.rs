@@ -1,6 +1,6 @@
 use pgn_reader::{BufferedReader, SanPlus, Skip, Visitor};
 
-use crate::stats::{SingleGameTermination, TerminationStats};
+use crate::stats::{CountsByMove, SingleGameTermination, TerminationStats};
 
 struct StatsVisitor {
     last_move: SanPlus,
@@ -65,11 +65,12 @@ impl Visitor for StatsVisitor {
     }
 }
 
-pub fn visit_reader(v: impl std::io::Read) -> anyhow::Result<TerminationStats> {
+pub fn visit_reader(v: impl std::io::Read) -> anyhow::Result<CountsByMove> {
     let reader = BufferedReader::new(v);
     let mut visitor = StatsVisitor::new();
     println!("Starting iteration");
-    let mut stats = TerminationStats::default();
+    // let mut stats = TerminationStats::default();
+    let mut stats = CountsByMove::default();
     for game in reader.into_iter(&mut visitor) {
         let term = game.unwrap();
         // println!("{game:?}");
