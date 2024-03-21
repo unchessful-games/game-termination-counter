@@ -1,6 +1,6 @@
 use pgn_reader::{BufferedReader, SanPlus, Skip, Visitor};
 
-use crate::stats::SingleGameTermination;
+use crate::stats::{SingleGameTermination, TerminationStats};
 
 struct StatsVisitor {
     last_move: SanPlus,
@@ -36,10 +36,7 @@ impl Visitor for StatsVisitor {
         match key {
             b"UTCDate" => {
                 let value = value.decode_utf8().unwrap();
-                let mut value = value.split(".");
-                self.data.date.0 = value.next().unwrap().parse().unwrap();
-                self.data.date.1 = value.next().unwrap().parse().unwrap();
-                self.data.date.2 = value.next().unwrap().parse().unwrap();
+                self.data.date = value.to_string();
             }
             b"Opening" => {
                 self.data.opening_name = value.decode_utf8().unwrap().to_string();
@@ -68,14 +65,16 @@ impl Visitor for StatsVisitor {
     }
 }
 
-pub fn visit_reader(v: impl std::io::Read) -> anyhow::Result<()> {
+pub fn visit_reader(v: impl std::io::Read) -> anyhow::Result<TerminationStats> {
     let reader = BufferedReader::new(v);
     let mut visitor = StatsVisitor::new();
     println!("Starting iteration");
+    let mut stats = TerminationStats::default();
     for game in reader.into_iter(&mut visitor) {
-        let game = game.unwrap();
+        let term = game.unwrap();
         // println!("{game:?}");
+        stats.increment(term);
     }
 
-    Ok(())
+    Ok(stats)
 }

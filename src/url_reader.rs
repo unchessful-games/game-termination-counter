@@ -4,7 +4,7 @@ use futures::stream::TryStreamExt;
 use tokio::io::AsyncReadExt;
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 
-use crate::visitor;
+use crate::{stats::TerminationStats, visitor};
 struct BytesStreamReader {
     pub data_recv: tokio::sync::mpsc::Receiver<Vec<u8>>,
 }
@@ -28,7 +28,7 @@ impl Read for BytesStreamReader {
         }
     }
 }
-pub async fn download_url(url: String) -> anyhow::Result<()> {
+pub async fn download_url(url: String) -> anyhow::Result<TerminationStats> {
     let response = reqwest::get(url).await.unwrap();
     let total_len = response.content_length().unwrap_or(1);
     let mut data = response
@@ -55,7 +55,7 @@ pub async fn download_url(url: String) -> anyhow::Result<()> {
                         );
                     }
                     let data = Vec::from_iter(buf[..v].iter().map(|v| *v));
-                    if let Err(why) = tx.send(data).await {
+                    if let Err(_) = tx.send(data).await {
                         break;
                     }
                 }
@@ -71,8 +71,7 @@ pub async fn download_url(url: String) -> anyhow::Result<()> {
     let compressed_data_blocking = BytesStreamReader { data_recv: rx };
     let decompressed_stream = zstd::Decoder::new(compressed_data_blocking).unwrap();
 
-    let handle = tokio::task::spawn_blocking(move || {
-        visitor::visit_reader(decompressed_stream).unwrap();
-    });
-    Ok(handle.await.unwrap())
+    let handle =
+        tokio::task::spawn_blocking(move || visitor::visit_reader(decompressed_stream).unwrap());
+    Ok(handle.await?)
 }
