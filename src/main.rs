@@ -1,6 +1,8 @@
 use clap::Parser;
+use stats::{ByOpening, GameCounter};
 
 mod args;
+mod generic_stats;
 mod stats;
 mod url_reader;
 mod visitor;
@@ -16,7 +18,7 @@ async fn main() -> anyhow::Result<()> {
         .open(args.file)
         .unwrap();
     let file = std::io::BufWriter::with_capacity(128 * 1024, file);
-    let stats = url_reader::download_url(args.url).await?;
+    let stats: ByOpening<GameCounter> = url_reader::download_url(args.url).await?;
     serde_json::to_writer(file, &stats)?;
 
     Ok(())

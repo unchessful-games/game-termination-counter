@@ -1,11 +1,14 @@
 use std::collections::HashMap;
 
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+
+use crate::generic_stats::GameCountingContainer;
 
 #[derive(Default, Clone, Debug)]
 pub struct SingleGameTermination {
     pub final_move: String,
     pub final_move_by_white: bool,
+    pub id: GameId,
     pub date: String,
     pub opening_name: String,
     pub white_elo: u16,
@@ -29,71 +32,35 @@ mod test {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct GameId(pub String);
+
+/// The leaf structure that records games that match a particular property.
 #[derive(Serialize, Deserialize, Debug, Default)]
-pub struct TerminationStats {
-    pub by_date: HashMap<String, StatsByRatingBucket>,
+pub struct GameCounter {
+    pub count: usize,
+    pub exemplars: Vec<GameId>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct StatsByRatingBucket {
-    pub ratings: HashMap<String, ByOpening>,
-}
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct ByOpening {
-    pub opening: HashMap<String, StatsByTermination>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct StatsByTermination {
-    pub termination: HashMap<String, StatsByFinishingColor>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct StatsByFinishingColor {
-    pub white: CountsByMove,
-    pub black: CountsByMove,
-}
-
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct CountsByMove(HashMap<String, usize>);
-
-impl CountsByMove {
-    pub fn increment(&mut self, how: SingleGameTermination) {
-        self.0
-            .entry(how.final_move)
-            .and_modify(|v| *v += 1)
-            .or_insert(1);
+impl GameCountingContainer for GameCounter {
+    fn increment(&mut self, term: SingleGameTermination) {
+        self.count += 1;
+        if self.exemplars.len() < 5 {
+            self.exemplars.push(term.id);
+        }
     }
 }
 
-impl TerminationStats {
-    pub fn increment(&mut self, how: SingleGameTermination) {
-        let white_rating_round = round_to_hundred(how.white_elo);
-        let black_rating_round = round_to_hundred(how.black_elo);
-        let rating = format!("{white_rating_round}-{black_rating_round}");
+/// Count games by their opening
+#[derive(Serialize, Deserialize, Debug, Default)]
+#[serde(bound = "T: Serialize+DeserializeOwned")]
+pub struct ByOpening<T: GameCountingContainer>(pub HashMap<String, T>);
 
-        let color = self
-            .by_date
-            .entry(how.date)
+impl<T: GameCountingContainer> GameCountingContainer for ByOpening<T> {
+    fn increment(&mut self, term: SingleGameTermination) {
+        self.0
+            .entry(term.opening_name.clone())
             .or_default()
-            .ratings
-            .entry(rating)
-            .or_default()
-            .opening
-            .entry(how.opening_name)
-            .or_default()
-            .termination
-            .entry(how.termination_string)
-            .or_default();
-        let my_color = if how.final_move_by_white {
-            &mut color.white
-        } else {
-            &mut color.black
-        };
-        my_color
-            .0
-            .entry(how.final_move)
-            .and_modify(|v| *v += 1)
-            .or_insert(1);
+            .increment(term)
     }
 }

@@ -1,6 +1,9 @@
 use pgn_reader::{BufferedReader, SanPlus, Skip, Visitor};
 
-use crate::stats::{CountsByMove, SingleGameTermination, TerminationStats};
+use crate::{
+    generic_stats::GameCountingContainer,
+    stats::{GameId, SingleGameTermination},
+};
 
 struct StatsVisitor {
     last_move: SanPlus,
@@ -50,6 +53,18 @@ impl Visitor for StatsVisitor {
             b"BlackElo" => {
                 self.data.black_elo = value.decode_utf8().unwrap().parse().unwrap_or_default();
             }
+            b"Site" => {
+                self.data.id = GameId(
+                    value
+                        .decode_utf8()
+                        .unwrap()
+                        .split("https://lichess.org/")
+                        .skip(1)
+                        .next()
+                        .unwrap()
+                        .to_string(),
+                )
+            }
             _ => {}
         }
     }
@@ -65,12 +80,12 @@ impl Visitor for StatsVisitor {
     }
 }
 
-pub fn visit_reader(v: impl std::io::Read) -> anyhow::Result<CountsByMove> {
+pub fn visit_reader<T: GameCountingContainer>(v: impl std::io::Read) -> anyhow::Result<T> {
     let reader = BufferedReader::new(v);
     let mut visitor = StatsVisitor::new();
     println!("Starting iteration");
     // let mut stats = TerminationStats::default();
-    let mut stats = CountsByMove::default();
+    let mut stats = T::default();
     for game in reader.into_iter(&mut visitor) {
         let term = game.unwrap();
         // println!("{game:?}");
